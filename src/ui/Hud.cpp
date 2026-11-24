@@ -427,19 +427,41 @@ void Hud::drawFrogSpots(World& w) {
 void Hud::drawCamera(World& w) {
   ImGui::SeparatorText("Film camera");
   auto& r = w.rails;
-  for (size_t i = 0; i < r.rails.size(); ++i) {
-    if (i) ImGui::SameLine();
-    bool active = r.activeRail == (int)i;
+  const char* modes[] = {"Rails (1-5)", "Free 360 (6)", "Drone (7)"};
+  for (int m = 0; m < 3; ++m) {
+    if (m) ImGui::SameLine();
+    bool active = (int)w.camMode == m;
     if (active) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.75f, 0.5f, 0.15f, 1.f));
-    if (ImGui::Button((std::to_string(i + 1) + " " + r.rails[i].name).c_str())) r.switchRail((int)i);
+    if (ImGui::Button(modes[m])) w.setCamMode((CamMode)m);
     if (active) ImGui::PopStyleColor();
-    if (i == 2) ImGui::NewLine();
+  }
+  if (w.camMode == CamMode::Rails) {
+    for (size_t i = 0; i < r.rails.size(); ++i) {
+      if (i) ImGui::SameLine();
+      bool active = r.activeRail == (int)i;
+      if (active) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.75f, 0.5f, 0.15f, 1.f));
+      if (ImGui::Button((std::to_string(i + 1) + " " + r.rails[i].name).c_str())) r.switchRail((int)i);
+      if (active) ImGui::PopStyleColor();
+      if (i == 2) ImGui::NewLine();
+    }
+    ImGui::TextColored(kDim, "A/D dolly along the rail, mouse pan/tilt");
+  } else if (w.camMode == CamMode::Free) {
+    ImGui::TextColored(kDim, "Look anywhere with the mouse (Esc frees it, Tab grabs it)\nWASD fly where you look, Space up, C down, Shift slow");
+    if (ImGui::Button("Reset position")) w.fly.reset(FlyCamera::Mode::Free);
+  } else {
+    ImGui::TextColored(kDim, "Gimbal stays locked on the stage. WASD fly (W/S toward/away),\nSpace up, C down, Shift slow. Mouse slides the aim point.");
+    ImGui::SliderFloat("Aim left/right", &w.fly.target.x, -8.f, 8.f, "%.1f m");
+    ImGui::SliderFloat("Aim height", &w.fly.target.y, 0.8f, 7.f, "%.1f m");
+    ImGui::Checkbox("Focus locked on aim point", &w.droneAutoFocus);
+    if (ImGui::Button("Re-centre on stage")) w.fly.target = FlyCamera::stageCentre();
+    ImGui::SameLine();
+    if (ImGui::Button("Reset drone")) w.fly.reset(FlyCamera::Mode::Drone);
   }
   ImGui::SliderFloat("Focal length", &r.focalLengthMm, 18.f, 135.f, "%.0f mm");
   ImGui::SliderFloat("Focus", &r.focusDistance, 0.5f, 40.f, "%.2f m", ImGuiSliderFlags_Logarithmic);
   ImGui::SliderFloat("Aperture", &r.fStop, 1.4f, 16.f, "f/%.1f", ImGuiSliderFlags_Logarithmic);
   ImGui::SliderFloat("Exposure", &r.evOffset, -3.f, 3.f, "%+.1f EV (lower = brighter)");
-  ImGui::TextColored(kDim, "A/D dolly, mouse pan (Tab or right-drag), Shift slow, Q/E zoom, R/F focus, T autofocus, Z/X iris");
+  ImGui::TextColored(kDim, "Q/E zoom, R/F focus, T autofocus, Z/X iris, ,/. exposure, V record");
   ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.75f, 0.05f, 0.05f, 1.f));
   ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.12f, 0.12f, 1.f));
   ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.f, 0.25f, 0.2f, 1.f));
@@ -536,7 +558,7 @@ void Hud::drawViewfinder(World& w) {
   ImVec2 lsz = font->CalcTextSizeA(fs * 0.8f, FLT_MAX, 0.f, lens);
   dl->AddText(font, fs * 0.8f, {b.x - pad - lsz.x, b.y - pad - lsz.y}, white, lens);
   // top-centre: rail name
-  const char* rail = w.rails.rails.empty() ? "" : w.rails.rails[w.rails.activeRail].name.c_str();
+  const char* rail = w.camModeName();
   ImVec2 rsz = font->CalcTextSizeA(fs * 0.8f, FLT_MAX, 0.f, rail);
   dl->AddText(font, fs * 0.8f, {ctr.x - rsz.x * 0.5f, a.y + pad}, dim, rail);
 

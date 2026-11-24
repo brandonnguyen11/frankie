@@ -51,6 +51,7 @@ set(OG_SOURCES
   src/lighting/LightingRig.cpp
   src/camera/OrbitCamera.cpp
   src/camera/RailCamera.cpp
+  src/camera/FlyCamera.cpp
   src/audio/AudioEngine.cpp
   src/audio/MidiSong.cpp
   src/net/Protocol.cpp

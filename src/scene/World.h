@@ -1,6 +1,7 @@
 #pragma once
 #include "actors/Frog.h"
 #include "audio/AudioEngine.h"
+#include "camera/FlyCamera.h"
 #include "camera/OrbitCamera.h"
 #include "camera/RailCamera.h"
 #include "camera/Recorder.h"
@@ -18,6 +19,7 @@ namespace og {
 enum class Zone { City, FadeOut, Establishing, Auditorium, FadeToCity };
 enum class Quality { Low = 0, Medium = 1, High = 2 };
 enum class LightView { Walk = 0, TopDown = 1, FromLight = 2 };
+enum class CamMode { Rails = 0, Free = 1, Drone = 2 };  // camera operator rigs
 
 struct World {
   // ---- state
@@ -41,7 +43,10 @@ struct World {
   LightingRig rig;
 
   OrbitCamera orbit;
-  RailCamera rails;
+  RailCamera rails;          // also holds the lens (focal, focus, iris, EV) for every camera mode
+  FlyCamera fly;
+  CamMode camMode = CamMode::Rails;
+  bool droneAutoFocus = true;
   LightView lightView = LightView::Walk;
   glm::vec2 topDownCursor{0.f, -5.f};
   bool mouseLook = false;
@@ -84,6 +89,8 @@ struct World {
   void setRole(Role r);
   void enterOpera();
   void returnToPlaza();
+  void setCamMode(CamMode m);
+  const char* camModeName() const;
   void claimSeat(int seat);
   void leaveSeat();
   void takeAudienceSeat();
@@ -106,6 +113,9 @@ struct World {
  private:
   void walk(float dt);
   void clampToVenue(glm::vec3& p) const;
+  void clampCamera(glm::vec3& p, const glm::vec3& prev) const;
+  glm::vec3 operatorPosition() const;
+  glm::vec3 operatorForward() const;
   float floorHeight(float x, float z) const;
   void handleNet(float dt);
   void onSongNote(const NoteEvent& e);

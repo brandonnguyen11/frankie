@@ -119,6 +119,24 @@ void Application::setupShotScene() {
       w.startRecording();
     }
     return;
+  } else if (sc == "drone" || sc == "free") {
+    w.localPlayer.role = Role::CameraOperator;
+    w.refreshNpcs();
+    bool drone = sc == "drone";
+    w.fly.reset(drone ? FlyCamera::Mode::Drone : FlyCamera::Mode::Free);
+    w.camMode = drone ? CamMode::Drone : CamMode::Free;
+    if (drone) {
+      w.fly.position = {-6.5f, 4.5f, 3.f};
+      w.rails.focalLengthMm = 32.f;
+      w.rails.fStop = 2.8f;
+    } else {
+      w.fly.position = {6.f, 9.f, 10.f};  // look back at the balconies and chandelier
+      w.fly.yaw = 200.f;
+      w.fly.pitch = 8.f;
+      w.rails.focalLengthMm = 18.f;
+      w.rails.fStop = 11.f;
+    }
+    return;
   } else if (sc == "musician") {
     w.localPlayer.role = Role::Musician;
     w.claimSeat(2);
@@ -256,6 +274,14 @@ void Application::run() {
     glfwGetFramebufferSize(window_, &fbW_, &fbH_);
 
     if (!shot) world_.handleInput(dt);
+    else if (world_.localPlayer.role == Role::CameraOperator && world_.camMode != CamMode::Rails) {
+      // shots: let the fly camera settle (no input) and keep drone focus on the aim point
+      glm::vec3 prev = world_.fly.position;
+      world_.fly.update(dt, world_.camMode == CamMode::Free ? FlyCamera::Mode::Free : FlyCamera::Mode::Drone,
+                        glm::vec3(0.f), 0.f, 0.f, false);
+      world_.fly.position = prev;
+      world_.rails.focusDistance = glm::distance(world_.fly.eye(), world_.fly.target);
+    }
     world_.update(dt);
 
     // --record-test: film a take with the demo song, then quit

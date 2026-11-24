@@ -214,6 +214,65 @@ void World::toggleSit() {
   localPlayer.sitting = !localPlayer.sitting;
 }
 
+// ====================================================================== camera rigs
+
+void World::setCamMode(CamMode m) {
+  if (m == camMode) return;
+  CamMode prev = camMode;
+  camMode = m;
+  if (m == CamMode::Rails) return;
+  // start the new rig where the current camera is, looking the same way
+  glm::vec3 p = prev == CamMode::Rails ? rails.position() : fly.position;
+  glm::vec3 f = prev == CamMode::Rails ? rails.orientation * glm::vec3(0, 0, -1) : fly.forward();
+  fly.velocity = glm::vec3(0.f);
+  fly.position = p;
+  fly.yaw = glm::degrees(std::atan2(f.z, f.x));
+  fly.pitch = glm::degrees(std::asin(std::clamp(f.y, -1.f, 1.f)));
+  fly.orientation = lookRotation(f);
+  // grab the mouse so looking works straight away (Esc releases it)
+  mouseLook = true;
+  if (GLFWwindow* win = glfwGetCurrentContext()) glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+  if (m == CamMode::Drone) {
+    fly.target = FlyCamera::stageCentre();
+    droneAutoFocus = true;
+    setStatus("Drone: WASD fly, Space/C up/down, mouse slides the lock-on point across the stage", 6.f);
+  } else {
+    setStatus("Free 360: Tab or right-drag to look around, WASD fly, Space/C up/down, Shift slow", 6.f);
+  }
+}
+
+const char* World::camModeName() const {
+  switch (camMode) {
+    case CamMode::Free: return "Free 360";
+    case CamMode::Drone: return "Drone - locked on stage";
+    default: return rails.rails.empty() ? "Rails" : rails.rails[rails.activeRail].name.c_str();
+  }
+}
+
+glm::vec3 World::operatorPosition() const { return camMode == CamMode::Rails ? rails.position() : fly.eye(); }
+glm::vec3 World::operatorForward() const {
+  return camMode == CamMode::Rails ? rails.orientation * glm::vec3(0, 0, -1) : fly.forward();
+}
+
+// Keep a flying camera inside the auditorium: horseshoe walls, dome, stage house,
+// and the proscenium wall (you can only pass through the opening).
+void World::clampCamera(glm::vec3& p, const glm::vec3& prev) const {
+  const float wallZ = -3.2f;
+  bool crossing = (prev.z >= wallZ) != (p.z >= wallZ);
+  if (crossing && (std::abs(p.x) > 7.0f || p.y > 9.3f)) p.z = prev.z >= wallZ ? wallZ + 0.15f : wallZ - 0.15f;
+  if (p.z >= wallZ) {
+    glm::vec2 d = glm::vec2(p.x, p.z) - glm::vec2(0.f, 5.f);
+    float r = glm::length(d);
+    if (r > 14.0f) { d *= 14.0f / r; p.x = d.x; p.z = 5.f + d.y; }
+    p.y = std::min(p.y, 17.5f);
+  } else {
+    p.x = std::clamp(p.x, -10.4f, 10.4f);
+    p.z = std::max(p.z, -13.4f);
+    p.y = std::min(p.y, 15.5f);
+  }
+  p.y = std::max(p.y, floorHeight(p.x, p.z) + 0.35f);
+}
+
 // ====================================================================== lighting desk (M4)
 
 bool World::canEditLights() const {
@@ -522,25 +581,44 @@ void World::handleInput(float dt) {
 
   // ---------------- camera operator on the rails
   if (inHouse && role == Role::CameraOperator) {
-    float move = (in.down(GLFW_KEY_D) ? 1.f : 0.f) - (in.down(GLFW_KEY_A) ? 1.f : 0.f);
-    rails.slowPan = in.down(GLFW_KEY_LEFT_SHIFT);
-    rails.update(dt, move, mdx, mdy);
+    bool slow = in.down(GLFW_KEY_LEFT_SHIFT);
     for (int i = 0; i < 5; ++i)
-      if (in.pressed(GLFW_KEY_1 + i)) rails.switchRail(i);
+      if (in.pressed(GLFW_KEY_1 + i)) { setCamMode(CamMode::Rails); rails.switchRail(i); }
+    if (in.pressed(GLFW_KEY_6)) setCamMode(CamMode::Free);
+    if (in.pressed(GLFW_KEY_7)) setCamMode(CamMode::Drone);
+    if (camMode == CamMode::Rails) {
+      float move = (in.down(GLFW_KEY_D) ? 1.f : 0.f) - (in.down(GLFW_KEY_A) ? 1.f : 0.f);
+      rails.slowPan = slow;
+      rails.update(dt, move, mdx, mdy);
+    } else {
+      glm::vec3 mv{(in.down(GLFW_KEY_D) ? 1.f : 0.f) - (in.down(GLFW_KEY_A) ? 1.f : 0.f),
+                   (in.down(GLFW_KEY_SPACE) ? 1.f : 0.f) - (in.down(GLFW_KEY_C) ? 1.f : 0.f),
+                   (in.down(GLFW_KEY_W) ? 1.f : 0.f) - (in.down(GLFW_KEY_S) ? 1.f : 0.f)};
+      glm::vec3 prev = fly.position;
+      fly.update(dt, camMode == CamMode::Free ? FlyCamera::Mode::Free : FlyCamera::Mode::Drone, mv,
+                 mdx * (slow ? 0.3f : 1.f), mdy * (slow ? 0.3f : 1.f), slow);
+      clampCamera(fly.position, prev);
+      rails.update(0.f, 0.f, 0.f, 0.f);  // keeps lens values clamped
+      if (camMode == CamMode::Drone && droneAutoFocus) {
+        float d = glm::distance(fly.eye(), fly.target);
+        rails.focusDistance += (d - rails.focusDistance) * (1.f - std::exp(-dt * 6.f));  // focus locked on the stage
+      }
+    }
     float zoomRate = rails.focalLengthMm * 0.8f;
     if (in.down(GLFW_KEY_Q)) rails.focalLengthMm -= zoomRate * dt;
     if (in.down(GLFW_KEY_E)) rails.focalLengthMm += zoomRate * dt;
     float pull = std::max(1.f, rails.focusDistance) * 0.9f;
-    if (in.down(GLFW_KEY_R)) rails.focusDistance += pull * dt;
-    if (in.down(GLFW_KEY_F)) rails.focusDistance -= pull * dt;
+    if (in.down(GLFW_KEY_R)) { rails.focusDistance += pull * dt; droneAutoFocus = false; }
+    if (in.down(GLFW_KEY_F)) { rails.focusDistance -= pull * dt; droneAutoFocus = false; }
     if (in.pressed(GLFW_KEY_Z)) rails.fStop = std::max(1.4f, rails.fStop / 1.41421f);
     if (in.pressed(GLFW_KEY_X)) rails.fStop = std::min(16.f, rails.fStop * 1.41421f);
     if (in.pressed(GLFW_KEY_COMMA)) rails.evOffset += 0.33f;   // darker
     if (in.pressed(GLFW_KEY_PERIOD)) rails.evOffset -= 0.33f;  // brighter
     if (in.pressed(GLFW_KEY_T)) {
       // autofocus on the nearest performer in the centre of frame
-      glm::vec3 p = rails.position();
-      glm::vec3 fwd = rails.orientation * glm::vec3(0, 0, -1);
+      droneAutoFocus = true;
+      glm::vec3 p = operatorPosition();
+      glm::vec3 fwd = operatorForward();
       float best = 1e9f;
       for (auto& t : performerPositions()) {
         glm::vec3 d = t + glm::vec3(0, 1.3f, 0) - p;
@@ -942,9 +1020,14 @@ CameraView World::cameraView(float aspect) const {
     CameraView g;
     bool inHouse = zone == Zone::Auditorium || zone == Zone::Establishing || zone == Zone::FadeToCity;
     if (inHouse && localPlayer.role == Role::CameraOperator) {
-      g.view = rails.view();
+      if (camMode == CamMode::Rails) {
+        g.view = rails.view();
+        g.position = rails.position();
+      } else {
+        g.view = fly.view();
+        g.position = fly.eye();
+      }
       g.proj = rails.proj(aspect);
-      g.position = rails.position();
       g.film = true;
       g.focalMm = rails.focalLengthMm;
       g.fStop = rails.fStop;
