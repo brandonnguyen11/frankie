@@ -589,7 +589,23 @@ void World::handleInput(float dt) {
     if (camMode == CamMode::Rails) {
       float move = (in.down(GLFW_KEY_D) ? 1.f : 0.f) - (in.down(GLFW_KEY_A) ? 1.f : 0.f);
       rails.slowPan = slow;
-      rails.update(dt, move, mdx, mdy);
+      if (railLock) {
+        // stage lock: the head turns to keep the aim point framed while the dolly slides;
+        // the mouse moves the aim point instead of the head
+        fly.target.x = std::clamp(fly.target.x + mdx * 0.012f * (slow ? 0.3f : 1.f), -8.f, 8.f);
+        fly.target.y = std::clamp(fly.target.y - mdy * 0.008f * (slow ? 0.3f : 1.f), 0.8f, 7.f);
+        rails.update(dt, move, 0.f, 0.f);
+        glm::vec3 d = glm::normalize(fly.target - rails.position());
+        rails.yaw = glm::degrees(std::atan2(d.z, d.x));
+        rails.pitch = glm::degrees(std::asin(std::clamp(d.y, -1.f, 1.f)));
+        rails.orientation = glm::slerp(rails.orientation, rails.targetOrientation(), 1.f - std::exp(-dt * 12.f));
+        if (droneAutoFocus) {
+          float fd = glm::distance(rails.position(), fly.target);
+          rails.focusDistance += (fd - rails.focusDistance) * (1.f - std::exp(-dt * 6.f));
+        }
+      } else {
+        rails.update(dt, move, mdx, mdy);
+      }
     } else {
       glm::vec3 mv{(in.down(GLFW_KEY_D) ? 1.f : 0.f) - (in.down(GLFW_KEY_A) ? 1.f : 0.f),
                    (in.down(GLFW_KEY_SPACE) ? 1.f : 0.f) - (in.down(GLFW_KEY_C) ? 1.f : 0.f),

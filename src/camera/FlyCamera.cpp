@@ -62,7 +62,7 @@ void FlyCamera::update(float dt, Mode m, glm::vec3 move, float mdx, float mdy, b
     wantQ = glm::angleAxis(glm::radians(bank * 0.35f), glm::normalize(toT)) * lookRotation(toT);
   }
   // gyro stabilisation: slerp toward the wanted attitude
-  float k = 1.f - std::exp(-dt * (m == Mode::Drone ? 7.f : 16.f));
+  float k = 1.f - std::exp(-dt * (m == Mode::Drone ? 14.f : 16.f));  // drone gimbal keeps up with strafes
   orientation = glm::normalize(glm::slerp(orientation, wantQ, k));
 }
 

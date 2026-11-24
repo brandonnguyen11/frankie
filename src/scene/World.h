@@ -46,7 +46,8 @@ struct World {
   RailCamera rails;          // also holds the lens (focal, focus, iris, EV) for every camera mode
   FlyCamera fly;
   CamMode camMode = CamMode::Rails;
-  bool droneAutoFocus = true;
+  bool droneAutoFocus = true;   // focus follows the aim point (rails + drone)
+  bool railLock = true;         // rails keep the stage framed while dollying
   LightView lightView = LightView::Walk;
   glm::vec2 topDownCursor{0.f, -5.f};
   bool mouseLook = false;

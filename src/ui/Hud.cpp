@@ -444,7 +444,15 @@ void Hud::drawCamera(World& w) {
       if (active) ImGui::PopStyleColor();
       if (i == 2) ImGui::NewLine();
     }
-    ImGui::TextColored(kDim, "A/D dolly along the rail, mouse pan/tilt");
+    ImGui::Checkbox("Lock on stage", &w.railLock);
+    ImGui::SameLine();
+    ImGui::Checkbox("Auto focus", &w.droneAutoFocus);
+    if (w.railLock) {
+      ImGui::TextColored(kDim, "A/D dolly - camera stays aimed at the stage. Mouse slides the aim point.");
+      if (ImGui::Button("Re-centre aim")) w.fly.target = FlyCamera::stageCentre();
+    } else {
+      ImGui::TextColored(kDim, "A/D dolly along the rail, mouse pan/tilt");
+    }
   } else if (w.camMode == CamMode::Free) {
     ImGui::TextColored(kDim, "Look anywhere with the mouse (Esc frees it, Tab grabs it)\nWASD fly where you look, Space up, C down, Shift slow");
     if (ImGui::Button("Reset position")) w.fly.reset(FlyCamera::Mode::Free);

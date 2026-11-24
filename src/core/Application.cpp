@@ -119,6 +119,20 @@ void Application::setupShotScene() {
       w.startRecording();
     }
     return;
+  } else if (sc == "railstrafe" || sc == "dronestrafe") {
+    w.localPlayer.role = Role::CameraOperator;
+    w.refreshNpcs();
+    w.rails.focalLengthMm = 35.f;
+    w.rails.fStop = 4.f;
+    if (sc == "dronestrafe") {
+      w.fly.reset(FlyCamera::Mode::Drone);
+      w.camMode = CamMode::Drone;
+      w.fly.position = {-6.f, 4.5f, 4.f};
+    } else {
+      w.rails.switchRail(0);
+      w.rails.s = 0.f;  // start at the left end; the test holds D
+    }
+    return;
   } else if (sc == "drone" || sc == "free") {
     w.localPlayer.role = Role::CameraOperator;
     w.refreshNpcs();
@@ -273,8 +287,12 @@ void Application::run() {
     glfwPollEvents();
     glfwGetFramebufferSize(window_, &fbW_, &fbH_);
 
-    if (!shot) world_.handleInput(dt);
-    else if (world_.localPlayer.role == Role::CameraOperator && world_.camMode != CamMode::Rails) {
+    if (shot && (opts_.shotScene == "railstrafe" || opts_.shotScene == "dronestrafe")) {
+      Input::instance().state().keys['D'] = true;  // hold D: slide right the whole shot
+      world_.handleInput(dt);
+    } else if (!shot) world_.handleInput(dt);
+    else if (opts_.shotScene != "railstrafe" && opts_.shotScene != "dronestrafe" &&
+             world_.localPlayer.role == Role::CameraOperator && world_.camMode != CamMode::Rails) {
       // shots: let the fly camera settle (no input) and keep drone focus on the aim point
       glm::vec3 prev = world_.fly.position;
       world_.fly.update(dt, world_.camMode == CamMode::Free ? FlyCamera::Mode::Free : FlyCamera::Mode::Drone,
