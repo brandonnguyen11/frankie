@@ -1,0 +1,2 @@
+Instrument samples: VSCO 2 Community Edition by Versilian Studios, CC0 1.0.
+https://github.com/sgossner/VSCO-2-CE  (converted to 48 kHz mono, trimmed)

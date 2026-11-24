@@ -1,0 +1,19 @@
+Opéra Grenouille — Credits (CS4361)
+
+Original work
+  Procedural city plaza, Garnier-inspired exterior and auditorium, frog performers,
+  props, shaders, renderer, audio engine and networking.
+
+Instrument samples
+  VSCO 2 Community Edition — Versilian Studios — CC0 1.0
+  https://github.com/sgossner/VSCO-2-CE
+  (piano: Upright Nr1; solo violin; cello section; flute; trumpet; timpani)
+
+Lighting reference only (no assets used)
+  Agent 327: Operation Barbershop — Blender Studio — CC BY-ND
+
+Third-party libraries
+  GLFW (zlib), glm (MIT), Assimp (BSD-3), Dear ImGui (MIT), glad (MIT),
+  miniaudio (public domain / MIT-0), stb_image / stb_image_write (public domain / MIT)
+
+CC BY models added to assets/models must be listed here with author, title, link and license.

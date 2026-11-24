@@ -1,0 +1,10 @@
+build/
+cmake-build-*/
+.DS_Store
+*.mp4
+*.rawvideo
+*.rgb
+*.f32
+lighting_preset.ogrig
+.cache/
+compile_commands.json
