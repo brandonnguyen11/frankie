@@ -124,7 +124,7 @@ void World::setRole(Role r) {
   }
   switch (r) {
     case Role::Musician:
-      setStatus("Musician: walk to the orchestra pit and press E at a chair, or pick a seat in the panel", 6.f);
+      setStatus("Musician: walk onto the stage and press E at a chair, or pick a seat in the panel", 6.f);
       break;
     case Role::Singer: {
       int taken[2] = {0, 0};
@@ -421,6 +421,7 @@ float World::floorHeight(float x, float z) const {
     int step = (int)std::floor((5.f - z) / 0.5f);
     return std::clamp(step + 1, 0, 8) * 0.15f;
   }
+  if (z < -8.6f && z > -10.6f && std::abs(x) < 5.8f) return 1.5f;  // orchestra riser
   if (z < -1.f && std::abs(x) < 11.f) return 1.1f;
   if (z < 3.3f && std::abs(x) < 9.f) return -0.5f;
   return std::clamp((z - 3.5f) * 0.11f, 0.f, 1.95f);
@@ -627,7 +628,7 @@ void World::handleInput(float dt) {
       if (role == Role::Musician && in.pressed(GLFW_KEY_E)) {
         int s = orchestra.nearestFree(localPlayer.position, 2.0f, (int)localPlayer.id);
         if (s >= 0) claimSeat(s);
-        else setStatus("Walk up to a free chair in the orchestra pit (it's in front of the stage)");
+        else setStatus("Walk up to a free chair on the stage (behind the singers)");
       }
       if (role == Role::Audience && in.pressed(GLFW_KEY_E)) takeAudienceSeat();
       if (role == Role::LightingDesigner) {

@@ -102,6 +102,23 @@ void Application::setupShotScene() {
     w.localPlayer.role = Role::LightingDesigner;
     w.lightView = LightView::TopDown;
     w.lightingOwner = (int)w.localPlayer.id;
+  } else if (sc == "spots" || sc == "rec") {
+    // camera on the mid stalls rail; "spots" also gives every frog its own followspot
+    w.localPlayer.role = Role::CameraOperator;
+    w.rails.switchRail(1);
+    w.rails.focalLengthMm = 26.f;
+    w.rails.pitch = 0.f;
+    w.rails.fStop = 8.f;
+    w.rails.orientation = w.rails.targetOrientation();
+    w.refreshNpcs();
+    if (sc == "spots") {
+      auto names = w.performerNames();
+      auto pos = w.performerPositions();
+      for (size_t i = 0; i < names.size(); ++i) w.rig.addFollowspot((int)i, pos[i], names[i]);
+    } else {
+      w.startRecording();
+    }
+    return;
   } else if (sc == "musician") {
     w.localPlayer.role = Role::Musician;
     w.claimSeat(2);

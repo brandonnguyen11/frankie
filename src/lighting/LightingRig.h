@@ -51,7 +51,7 @@ struct LightCue {
 };
 
 struct LightingRig {
-  static constexpr int kMaxLights = 12;
+  static constexpr int kMaxLights = 20;  // one per frog on stage; first 8 cast shadows
   static constexpr int kMaxShadowed = 8;
 
   std::vector<MountPoint> mounts;
@@ -70,6 +70,9 @@ struct LightingRig {
   void applyDefaultAgent327();
   void addLight();
   void removeSelected();
+  // Narrow warm spot that follows performer `target`; returns light index (-1 if rig full).
+  int addFollowspot(int target, const glm::vec3& targetPos, const std::string& name);
+  void removeFollowspots();
   void setMount(SpotLight& L, int mount);
   void updateFollowspots(const std::vector<glm::vec3>& targets);
   void update(float dt);

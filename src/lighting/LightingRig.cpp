@@ -111,7 +111,7 @@ void LightingRig::applyDefaultAgent327() {
   f.followTarget = 1;
   place(f, "Followspot booth R", {2.f, 2.2f, -5.f});
 
-  // One cool back light per section: stage, pit left, pit right (rim light)
+  // One cool back light per section: singers, orchestra left, orchestra right (rim light)
   SpotLight b;
   b.kelvin = 7500.f;
   b.intensityKcd = 90.f;
@@ -119,11 +119,11 @@ void LightingRig::applyDefaultAgent327() {
   b.softness = 0.5f;
   b.name = "Back light stage (cool)";
   place(b, "Upstage electric 0", {0.f, 1.1f, -4.5f});
-  b.name = "Back light pit L (cool)";
-  b.beamAngle = 30.f;
-  place(b, "1st electric -6", {-3.5f, -0.4f, 1.2f});
-  b.name = "Back light pit R (cool)";
-  place(b, "1st electric 6", {3.5f, -0.4f, 1.2f});
+  b.name = "Back light orchestra L (cool)";
+  b.beamAngle = 38.f;
+  place(b, "Upstage electric -6", {-3.3f, 1.3f, -8.4f});
+  b.name = "Back light orchestra R (cool)";
+  place(b, "Upstage electric 6", {3.3f, 1.3f, -8.4f});
 
   // Low warm side fill so the orchestra reads under the house
   SpotLight s;
@@ -132,8 +132,9 @@ void LightingRig::applyDefaultAgent327() {
   s.beamAngle = 45.f;
   s.softness = 0.8f;
   s.castsShadow = true;
+  s.intensityKcd = 60.f;
   s.name = "Box boom L (warm fill)";
-  place(s, "Box boom L", {0.f, 0.5f, 1.5f});
+  place(s, "Box boom L", {0.f, 1.6f, -8.f});
 
   haze = 0.30f;
   houseLights = 0.10f;
@@ -155,6 +156,45 @@ void LightingRig::addLight() {
   n.aimAt({0.f, 1.1f, -5.f});
   lights.push_back(n);
   selected = (int)lights.size() - 1;
+  markDirty();
+}
+
+int LightingRig::addFollowspot(int target, const glm::vec3& targetPos, const std::string& name) {
+  for (size_t i = 0; i < lights.size(); ++i)
+    if (lights[i].followTarget == target) { selected = (int)i; return (int)i; }  // already lit
+  if ((int)lights.size() >= kMaxLights) return -1;
+  if (mounts.empty()) buildMounts();
+  // hang it on the front-of-house truss position closest to the frog
+  int best = 0;
+  float bd = 1e9f;
+  for (size_t m = 0; m < mounts.size(); ++m) {
+    if (mounts[m].name.rfind("FOH truss", 0) != 0) continue;
+    float d = std::abs(mounts[m].position.x - targetPos.x);
+    if (d < bd) { bd = d; best = (int)m; }
+  }
+  SpotLight L;
+  L.name = "Spot: " + name;
+  L.mount = best;
+  L.position = mounts[best].position;
+  L.kelvin = 3200.f;
+  L.intensityKcd = 220.f;
+  L.beamAngle = 7.f;
+  L.softness = 0.45f;
+  L.castsShadow = true;
+  L.followTarget = target;
+  L.aimAt(targetPos + glm::vec3(0, 1.3f, 0));
+  lights.push_back(L);
+  selected = (int)lights.size() - 1;
+  markDirty();
+  return selected;
+}
+
+void LightingRig::removeFollowspots() {
+  // keep the preset's two singer followspots (targets 0/1), drop the per-frog spots
+  lights.erase(std::remove_if(lights.begin(), lights.end(),
+                              [](const SpotLight& L) { return L.name.rfind("Spot: ", 0) == 0; }),
+               lights.end());
+  selected = std::clamp(selected, 0, std::max(0, (int)lights.size() - 1));
   markDirty();
 }
 

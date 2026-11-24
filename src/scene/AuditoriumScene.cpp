@@ -2,7 +2,7 @@
 //
 // Layout (metres, +Z toward the back of the house, stage at -Z):
 //   stage deck top y=1.1 for z in [-14,-1]; proscenium opening |x|<7.3 at z=-3.2
-//   orchestra pit floor y=-0.5 for z in [-1,3.2]
+//   orchestra pit floor y=-0.5 for z in [-1,3.2] (empty: the orchestra plays on stage, riser y=1.5 at z~-9.6)
 //   stalls rake from y=0 at z=3.5 to y=1.95 at z=21
 //   horseshoe centred C=(0,5): tier fronts r=11.5, back wall r=15, tiers y=4.5/8/11.5
 //   dome over the house, chandelier at (0,12.8,5.5)
@@ -155,8 +155,8 @@ SceneData buildAuditorium(std::vector<SeatSpot>* audienceSeats) {
     s.add(g.build(), gold);
   }
   // main curtain: open, gathered to the sides, plus pleated valance with gold fringe
-  s.add(pleatedCurtain(-7.3f, -4.6f, 1.1f, 9.5f, -3.7f, 0.16f, 0.32f), redVelvet, glm::mat4(1), true);
-  s.add(pleatedCurtain(4.6f, 7.3f, 1.1f, 9.5f, -3.7f, 0.16f, 0.32f), redVelvet, glm::mat4(1), true);
+  s.add(pleatedCurtain(-7.3f, -5.9f, 1.1f, 9.5f, -3.7f, 0.2f, 0.26f), redVelvet, glm::mat4(1), true);
+  s.add(pleatedCurtain(5.9f, 7.3f, 1.1f, 9.5f, -3.7f, 0.2f, 0.26f), redVelvet, glm::mat4(1), true);
   s.add(pleatedCurtain(-7.3f, 7.3f, 8.3f, 9.5f, -3.55f, 0.1f, 0.6f, true), redVelvet, glm::mat4(1), true);
   s.add(makeBox({7.3f, 0.06f, 0.06f}), gold, T({0, 8.05f, -3.5f}));
 
@@ -325,7 +325,8 @@ SceneData buildAuditorium(std::vector<SeatSpot>* audienceSeats) {
     s.add(f, gold);
   }
 
-  // ---------------------------------------------------------------- orchestra pit furniture
+  // ---------------------------------------------------------------- orchestra on stage
+  s.add(makeBox({5.8f, 0.2f, 1.0f}), Material::wood({0.14f, 0.08f, 0.05f}, 1.f), T({0, 1.3f, -9.6f}));  // riser
   {
     MeshBuilder stands, chairs, lamps;
     for (const auto& seat : orchestraLayout()) {
@@ -343,8 +344,8 @@ SceneData buildAuditorium(std::vector<SeatSpot>* audienceSeats) {
     s.add(chairs.build(), Material::standard({0.03f, 0.03f, 0.03f}, 0.4f));
     s.add(stands.build(), Material::standard({0.05f, 0.05f, 0.05f}, 0.35f, 1.f));
     s.add(lamps.build(), Material::emissiveLight(kelvinToLinearRGB(3000.f), 6000.f), glm::mat4(1), false);
-    s.points.push_back({{-3.5f, 0.9f, 1.4f}, kelvinToLinearRGB(3000.f), 140.f, 5.f});
-    s.points.push_back({{3.5f, 0.9f, 1.4f}, kelvinToLinearRGB(3000.f), 140.f, 5.f});
+    s.points.push_back({{-3.5f, 2.6f, -8.2f}, kelvinToLinearRGB(3000.f), 140.f, 5.f});
+    s.points.push_back({{3.5f, 2.6f, -8.2f}, kelvinToLinearRGB(3000.f), 140.f, 5.f});
   }
   // grand piano in front of the piano seat (the frog plays it from behind, facing the house)
   {

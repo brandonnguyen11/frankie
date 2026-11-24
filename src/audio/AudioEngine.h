@@ -87,6 +87,7 @@ class AudioEngine {
   void setMonitor(bool m) { monitor_.store(m); }
   bool monitor() const { return monitor_.load(); }
   float micLevel() const { return micLevel_.load(); }
+  float outputLevel() const { return outLevel_.load(); }
 
   // Network streams: 24 kHz mono int16
   void drainOutgoing(StreamKind kind, std::vector<int16_t>& out);
@@ -113,7 +114,7 @@ class AudioEngine {
   bool micOk_ = false;
   std::atomic<uint64_t> samplesRendered_{0};
   std::atomic<bool> pushToSing_{false}, muted_{false}, monitor_{false};
-  std::atomic<float> micLevel_{0.f}, songLevel_{0.f};
+  std::atomic<float> micLevel_{0.f}, songLevel_{0.f}, outLevel_{0.f};
   std::atomic<int> songBeats_{0};
   std::atomic<bool> filePlaying_{false};
   std::atomic<size_t> filePos_{0};

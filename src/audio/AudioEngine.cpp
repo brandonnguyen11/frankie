@@ -487,7 +487,7 @@ void AudioEngine::process(float* out, const float* in, uint32_t frames) {
   const bool playing = filePlaying_.load();
   size_t fpos = filePos_.load();
   size_t pi = 0;
-  float micSum = 0.f;
+  float micSum = 0.f, outSum = 0.f;
   float voiceLevelAcc[kStreams] = {};
   std::vector<int16_t> netVoice, netSong;
   netVoice.reserve(frames / 2 + 2);
@@ -619,6 +619,7 @@ void AudioEngine::process(float* out, const float* in, uint32_t frames) {
     float baseL = L + sl + remoteSong + remoteVoice + wl;
     float baseR = R + sr + remoteSong + remoteVoice + wr;
     float recL = baseL + voice + vl, recR = baseR + voice + vr;
+    outSum += recL * recL + recR * recR;
     float outL = mon ? recL : baseL, outR = mon ? recR : baseR;
     out[f * 2] = std::tanh(outL * gain);
     out[f * 2 + 1] = std::tanh(outR * gain);
@@ -663,6 +664,7 @@ void AudioEngine::process(float* out, const float* in, uint32_t frames) {
     if (I.streams[k].used) I.streams[k].level = std::sqrt(voiceLevelAcc[k] / std::max(1u, frames));
   float rms = std::sqrt(micSum / std::max(1u, frames));
   micLevel_ = micLevel_.load() * 0.7f + rms * 0.3f;
+  outLevel_ = outLevel_.load() * 0.8f + std::sqrt(outSum / std::max(1u, frames * 2)) * 0.2f;
   songLevel_ = std::sqrt(I.songEnv);
   if (!netVoice.empty() || !netSong.empty()) {
     std::lock_guard<std::mutex> l(I.outMutex);

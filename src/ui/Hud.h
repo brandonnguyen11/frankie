@@ -36,6 +36,8 @@ class Hud {
   void drawSinger(World& w);
   void drawLighting(World& w);
   void drawCamera(World& w);
+  void drawViewfinder(World& w);
+  void drawFrogSpots(World& w);
   void drawRoom(World& w);
   void drawGraphics(World& w, const FrameInfo& info);
   void drawHelp(World& w);

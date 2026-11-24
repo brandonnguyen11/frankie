@@ -4,6 +4,8 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include <GLFW/glfw3.h>
+#include <cmath>
 #include <algorithm>
 #include <cstring>
 #include <filesystem>
@@ -294,6 +296,8 @@ void Hud::drawLighting(World& w) {
     w.setStatus(rig.loadFile(p) ? "Loaded " + p : "Could not load " + p);
   }
 
+  drawFrogSpots(w);
+
   ImGui::SeparatorText("Lights");
   for (size_t i = 0; i < rig.lights.size(); ++i) {
     auto& L = rig.lights[i];
@@ -377,6 +381,48 @@ void Hud::drawLighting(World& w) {
   if (changed) rig.markDirty();
 }
 
+// Spotlight each frog on stage individually: one narrow followspot per performer.
+void Hud::drawFrogSpots(World& w) {
+  ImGui::SeparatorText("Spotlight a frog");
+  auto& rig = w.rig;
+  auto names = w.performerNames();
+  auto pos = w.performerPositions();
+  if (ImGui::Button("Spot every frog")) {
+    for (size_t i = 0; i < names.size() && i < pos.size(); ++i) rig.addFollowspot((int)i, pos[i], names[i]);
+    if ((int)rig.lights.size() >= LightingRig::kMaxLights) w.setStatus("Rig full (20 lights; the first 8 cast shadows)");
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Clear frog spots")) rig.removeFollowspots();
+  ImGui::SameLine();
+  ImGui::TextColored(kDim, "%d/%d lights", (int)rig.lights.size(), LightingRig::kMaxLights);
+  if (ImGui::BeginTable("frogspots", 2, ImGuiTableFlags_SizingStretchProp)) {
+    for (size_t i = 0; i < names.size() && i < pos.size(); ++i) {
+      int lit = -1;
+      for (size_t k = 0; k < rig.lights.size(); ++k)
+        if (rig.lights[k].followTarget == (int)i && rig.lights[k].enabled) lit = (int)k;
+      ImGui::PushID(2000 + (int)i);
+      ImGui::TableNextColumn();
+      if (lit >= 0) ImGui::TextColored(kGold, "* %s", names[i].c_str());
+      else ImGui::TextUnformatted(names[i].c_str());
+      ImGui::TableNextColumn();
+      if (lit >= 0) {
+        if (ImGui::SmallButton("Select")) rig.selected = lit;
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Off")) {
+          rig.lights[lit].followTarget = -1;
+          rig.selected = lit;
+          if (rig.lights[lit].name.rfind("Spot: ", 0) == 0) rig.removeSelected();
+          else rig.markDirty();
+        }
+      } else if (ImGui::SmallButton("Spotlight")) {
+        if (rig.addFollowspot((int)i, pos[i], names[i]) < 0) w.setStatus("Rig full: remove a light first");
+      }
+      ImGui::PopID();
+    }
+    ImGui::EndTable();
+  }
+}
+
 // ------------------------------------------------------------------ camera (C*)
 void Hud::drawCamera(World& w) {
   ImGui::SeparatorText("Film camera");
@@ -394,16 +440,122 @@ void Hud::drawCamera(World& w) {
   ImGui::SliderFloat("Aperture", &r.fStop, 1.4f, 16.f, "f/%.1f", ImGuiSliderFlags_Logarithmic);
   ImGui::SliderFloat("Exposure", &r.evOffset, -3.f, 3.f, "%+.1f EV (lower = brighter)");
   ImGui::TextColored(kDim, "A/D dolly, mouse pan (Tab or right-drag), Shift slow, Q/E zoom, R/F focus, T autofocus, Z/X iris");
-  if (!w.recording) {
-    if (ImGui::Button("Record (V)", {160, 28})) w.startRecording();
-    ImGui::SameLine();
-    ImGui::TextColored(kDim, "1920x1080 @ 30 fps .mp4");
-  } else {
-    if (ImGui::Button("Stop (V)", {160, 28})) w.stopRecording();
-    ImGui::SameLine();
-    ImGui::TextColored(kRed, "recording");
-  }
+  ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.75f, 0.05f, 0.05f, 1.f));
+  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.12f, 0.12f, 1.f));
+  ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.f, 0.25f, 0.2f, 1.f));
+  if (ImGui::Button(w.recording ? "STOP  (V)" : "REC  (V)", {160, 30})) w.recording ? w.stopRecording() : w.startRecording();
+  ImGui::PopStyleColor(3);
+  ImGui::SameLine();
+  if (w.recording) ImGui::TextColored(kRed, "recording");
+  else ImGui::TextColored(kDim, "1920x1080 @ 30 fps .mp4");
   if (!w.lastSavedPath.empty()) ImGui::TextWrapped("Last take: %s", w.lastSavedPath.c_str());
+}
+
+// Camcorder viewfinder drawn over the operator's screen only. The saved file is the
+// clean film frame (PRD C7), this is what the person holding the camera sees.
+void Hud::drawViewfinder(World& w) {
+  ImGuiIO& io = ImGui::GetIO();
+  ImDrawList* dl = ImGui::GetForegroundDrawList();
+  // the film frame is 16:9 letterboxed inside the window (Renderer::present)
+  float W = io.DisplaySize.x, H = io.DisplaySize.y;
+  float fw = W, fh = W * 9.f / 16.f;
+  if (fh > H) { fh = H; fw = H * 16.f / 9.f; }
+  ImVec2 a{(W - fw) * 0.5f, (H - fh) * 0.5f}, b{a.x + fw, a.y + fh};
+  bool rec = w.recording;
+  bool blink = std::fmod(w.time, 1.f) < 0.6f;
+  ImU32 white = IM_COL32(245, 245, 240, 230), dim = IM_COL32(245, 245, 240, 110);
+  ImU32 red = IM_COL32(235, 30, 30, 255);
+  float s = std::min(fw, fh);
+  float m = s * 0.045f, L = s * 0.07f, t = std::max(2.f, s * 0.004f);
+
+  // heavy red frame while rolling, like a tally light around the monitor
+  if (rec) dl->AddRect(a, b, IM_COL32(220, 20, 20, 200), 0.f, 0, t * 2.5f);
+  // corner brackets
+  ImVec2 c[4] = {{a.x + m, a.y + m}, {b.x - m, a.y + m}, {a.x + m, b.y - m}, {b.x - m, b.y - m}};
+  float dx[4] = {1, -1, 1, -1}, dy[4] = {1, 1, -1, -1};
+  for (int i = 0; i < 4; ++i) {
+    dl->AddLine(c[i], {c[i].x + L * dx[i], c[i].y}, rec ? red : white, t);
+    dl->AddLine(c[i], {c[i].x, c[i].y + L * dy[i]}, rec ? red : white, t);
+  }
+  // centre cross + rule-of-thirds + 90% safe frame
+  ImVec2 ctr{(a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f};
+  float k = s * 0.025f;
+  dl->AddLine({ctr.x - k, ctr.y}, {ctr.x + k, ctr.y}, white, t * 0.6f);
+  dl->AddLine({ctr.x, ctr.y - k}, {ctr.x, ctr.y + k}, white, t * 0.6f);
+  for (int i = 1; i < 3; ++i) {
+    dl->AddLine({a.x + fw * i / 3.f, a.y + m * 2}, {a.x + fw * i / 3.f, b.y - m * 2}, IM_COL32(255, 255, 255, 28), 1.f);
+    dl->AddLine({a.x + m * 2, a.y + fh * i / 3.f}, {b.x - m * 2, a.y + fh * i / 3.f}, IM_COL32(255, 255, 255, 28), 1.f);
+  }
+  dl->AddRect({a.x + fw * 0.05f, a.y + fh * 0.05f}, {b.x - fw * 0.05f, b.y - fh * 0.05f}, IM_COL32(255, 255, 255, 40), 0.f, 0, 1.f);
+
+  float fs = ImGui::GetFontSize() * std::clamp(s / 500.f, 1.2f, 2.2f);
+  ImFont* font = ImGui::GetFont();
+  auto text = [&](ImVec2 p, ImU32 col, const char* str) { dl->AddText(font, fs, p, col, str); };
+  float pad = m + L * 0.35f;
+
+  // top-left: REC / STBY tally
+  ImVec2 tl{a.x + pad, a.y + pad};
+  if (rec) {
+    if (blink) dl->AddCircleFilled({tl.x + fs * 0.45f, tl.y + fs * 0.55f}, fs * 0.4f, red);
+    text({tl.x + fs * 1.1f, tl.y}, red, "REC");
+  } else {
+    text(tl, IM_COL32(120, 230, 120, 230), "STBY");
+  }
+  // top-right: timecode + battery
+  char tc[32];
+  double el = rec ? std::max(0.0, glfwGetTime() - w.recordStartWall) : 0.0;
+  int tot = (int)el;
+  std::snprintf(tc, sizeof(tc), "%02d:%02d:%02d:%02d", tot / 3600, (tot / 60) % 60, tot % 60, (int)((el - tot) * 30.0));
+  ImVec2 tsz = font->CalcTextSizeA(fs, FLT_MAX, 0.f, tc);
+  text({b.x - pad - tsz.x, a.y + pad}, rec ? white : dim, tc);
+  ImVec2 bat{b.x - pad - fs * 2.2f, a.y + pad + fs * 1.5f};
+  dl->AddRect(bat, {bat.x + fs * 1.9f, bat.y + fs * 0.8f}, white, 2.f, 0, t * 0.6f);
+  dl->AddRectFilled({bat.x + fs * 1.9f, bat.y + fs * 0.25f}, {bat.x + fs * 2.05f, bat.y + fs * 0.55f}, white);
+  for (int i = 0; i < 3; ++i)
+    dl->AddRectFilled({bat.x + fs * (0.15f + i * 0.58f), bat.y + fs * 0.15f},
+                      {bat.x + fs * (0.6f + i * 0.58f), bat.y + fs * 0.65f}, white);
+
+  // bottom-left: audio meters (room mix)
+  float lvl = std::clamp(w.audio.outputLevel() * 6.f, 0.f, 1.f);
+  ImVec2 am{a.x + pad, b.y - pad - fs * 1.6f};
+  text(am, dim, "CH1");
+  text({am.x, am.y + fs * 0.8f}, dim, "CH2");
+  float mw = fs * 6.f;
+  for (int ch = 0; ch < 2; ++ch) {
+    float y = am.y + fs * (0.25f + ch * 0.8f);
+    float x0 = am.x + fs * 2.f;
+    dl->AddRect({x0, y}, {x0 + mw, y + fs * 0.35f}, dim);
+    float v = lvl * (ch ? 0.95f : 1.f);
+    ImU32 col = v > 0.85f ? red : (v > 0.6f ? IM_COL32(240, 200, 40, 230) : IM_COL32(90, 220, 90, 230));
+    dl->AddRectFilled({x0 + 1, y + 1}, {x0 + 1 + (mw - 2) * v, y + fs * 0.35f - 1}, col);
+  }
+  // bottom-right: lens + format
+  char lens[96];
+  std::snprintf(lens, sizeof(lens), "%.0fmm  f/%.1f  %.1fm  %+.1fEV   1080p30", w.rails.focalLengthMm, w.rails.fStop,
+                w.rails.focusDistance, -w.rails.evOffset);
+  ImVec2 lsz = font->CalcTextSizeA(fs * 0.8f, FLT_MAX, 0.f, lens);
+  dl->AddText(font, fs * 0.8f, {b.x - pad - lsz.x, b.y - pad - lsz.y}, white, lens);
+  // top-centre: rail name
+  const char* rail = w.rails.rails.empty() ? "" : w.rails.rails[w.rails.activeRail].name.c_str();
+  ImVec2 rsz = font->CalcTextSizeA(fs * 0.8f, FLT_MAX, 0.f, rail);
+  dl->AddText(font, fs * 0.8f, {ctr.x - rsz.x * 0.5f, a.y + pad}, dim, rail);
+
+  // big round record button, bottom centre (clickable)
+  float r = fs * 1.25f;
+  ImVec2 bc{ctr.x, b.y - pad - r};
+  ImGui::SetNextWindowPos({bc.x - r - 4, bc.y - r - 4});
+  ImGui::SetNextWindowSize({r * 2 + 8, r * 2 + 8});
+  ImGui::Begin("##recbtn", nullptr,
+               ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoSavedSettings |
+                   ImGuiWindowFlags_NoFocusOnAppearing);
+  ImGui::SetCursorScreenPos({bc.x - r, bc.y - r});
+  if (ImGui::InvisibleButton("rec", {r * 2, r * 2})) rec ? w.stopRecording() : w.startRecording();
+  bool hov = ImGui::IsItemHovered();
+  ImDrawList* wl = ImGui::GetWindowDrawList();
+  wl->AddCircle(bc, r, white, 40, t);
+  if (rec) wl->AddRectFilled({bc.x - r * 0.4f, bc.y - r * 0.4f}, {bc.x + r * 0.4f, bc.y + r * 0.4f}, red, r * 0.1f);
+  else wl->AddCircleFilled(bc, r * (hov ? 0.78f : 0.72f), red, 40);
+  ImGui::End();
 }
 
 // ------------------------------------------------------------------ multiplayer (M*)
@@ -458,7 +610,8 @@ void Hud::drawHelp(World& w) {
 
 // ------------------------------------------------------------------ main panel
 void Hud::draw(World& w, const FrameInfo& info) {
-  drawRecBanner(w);
+  if (w.zone == Zone::Auditorium && w.localPlayer.role == Role::CameraOperator) drawViewfinder(w);
+  else drawRecBanner(w);
   ImGuiIO& io = ImGui::GetIO();
   if (w.statusTimer > 0.f && !w.status.empty()) {
     ImGui::SetNextWindowPos({io.DisplaySize.x * 0.5f, io.DisplaySize.y - 24.f}, ImGuiCond_Always, {0.5f, 1.f});
@@ -470,6 +623,7 @@ void Hud::draw(World& w, const FrameInfo& info) {
     ImGui::End();
   }
   if (w.hideHud) return;
+  if (w.recording && w.localPlayer.role == Role::CameraOperator) return;  // just the viewfinder while rolling
   if (w.zone == Zone::Establishing || w.zone == Zone::FadeOut || w.zone == Zone::FadeToCity) return;
 
   ImGui::SetNextWindowPos({12, 12}, ImGuiCond_FirstUseEver);

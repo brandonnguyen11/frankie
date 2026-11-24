@@ -14,8 +14,9 @@ const std::vector<OrchestraSeat>& orchestraLayout() {
       OrchestraSeat s;
       s.index = i;
       int row = i / 6, col = i % 6;
-      s.position = {(col - 2.5f) * 2.3f, -0.5f, 0.6f + row * 1.6f};
-      if (i == 0) s.position.x = -7.7f;  // piano sits at the pit's edge so its body clears the cellos
+      // on stage, upstage of the singers' marks (z=-5): front row on the deck (y=1.1),
+      // back row on a 0.4 m riser so every frog reads from the house
+      s.position = {(col - 2.5f) * 1.8f, row == 0 ? 1.1f : 1.5f, row == 0 ? -7.6f : -9.6f};
       s.yaw = 0.f;
       s.instrument = row == 0 ? front[col] : back[col];
       s.label = std::string(instrumentName(s.instrument)) + " " + std::to_string(i + 1);
