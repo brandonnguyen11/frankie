@@ -77,6 +77,9 @@ if(APPLE)
     "-framework AVFoundation" "-framework AudioToolbox" "-framework CoreAudio"
     "-framework UniformTypeIdentifiers"
     "-Wl,-sectcreate,__TEXT,__info_plist,${CMAKE_SOURCE_DIR}/cmake/Info.plist")
+elseif(WIN32)
+  target_link_libraries(opera_grenouille PRIVATE ws2_32)
+  target_compile_definitions(opera_grenouille PRIVATE NOMINMAX _USE_MATH_DEFINES WIN32_LEAN_AND_MEAN)
 elseif(UNIX)
   target_link_libraries(opera_grenouille PRIVATE dl m)
 endif()
@@ -91,5 +94,9 @@ add_custom_command(TARGET opera_grenouille POST_BUILD
 add_executable(opera_server server/main.cpp src/net/Protocol.cpp)
 target_include_directories(opera_server PRIVATE src third_party)
 target_link_libraries(opera_server PRIVATE Threads::Threads)
+if(WIN32)
+  target_link_libraries(opera_server PRIVATE ws2_32)
+  target_compile_definitions(opera_server PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+endif()
 
 install(TARGETS opera_grenouille opera_server RUNTIME DESTINATION bin)
