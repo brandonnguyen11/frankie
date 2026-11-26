@@ -23,6 +23,8 @@ miniaudio · AVFoundation (macOS video) / ffmpeg (Windows video)
 10. [Assets and licensing](#assets-and-licensing)
 11. [Developer tools](#developer-tools) · [Project layout](#project-layout)
 
+**Testing every feature:** see [TESTING.md](TESTING.md) for the full step-by-step test plan.
+
 ---
 
 ## Requirements
@@ -261,6 +263,8 @@ viewfinder (REC dot, timecode, audio meters, red tally border). The viewfinder i
 ./build/opera_grenouille --shot out.png --scene balcony --size 1920x1080 [--frames N] [--hud]
 # film a take with the demo song and exit (checks the recording pipeline)
 ./build/opera_grenouille --record-test 10 --scene film
+# room-server protocol test (use a throwaway server)
+./build/opera_server 7790 & python3 tools/net_smoke_test.py 7790
 ```
 
 ## Project layout
